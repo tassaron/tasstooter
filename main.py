@@ -79,7 +79,7 @@ class TootArchive(SavableConfigParser):
             self[pname]['source'] = source
         self.save()
 
-    def fetch(self):
+    def fetch(self, source_required):
         i = 0
         while i < len(self.sections()) + 1:
             i += 1
@@ -87,6 +87,8 @@ class TootArchive(SavableConfigParser):
             if section == 'LASTTOOT':
                 continue
             newToot = self[section]
+            if source_required and newToot['source'] == '0':
+                continue
             if newToot['used'] == "0" and (
                         newToot['source'] != self['LASTTOOT']['source']
                     ):
@@ -142,7 +144,10 @@ class ReplyBot(StreamListener):
                 self.archive[str(target)]['used'] = '1'
                 self.archive.save()
         except KeyError:
-            print("reply to an id not found in archive: %s" % str(target))
+            if target:
+                print("unknown reply from %s to %s" % (acct, str(target)))
+            else:
+                print("mentioned by %s" % acct)
             return
 
 
@@ -208,6 +213,11 @@ def main():
         action='store_true'
     )
     parser.add_argument(
+        '-s', '--source-required',
+        help="ignore all sourceless toots when searching for a toot to toot",
+        action='store_true'
+    )
+    parser.add_argument(
         '-r', '--reply',
         help='enter reply mode to respond to requests for source url',
         action='store_true'
@@ -235,7 +245,7 @@ def main():
     # now things that require connecting to an instance
     mastodon = None
     if arg.toot:
-        newToot = archive.fetch()
+        newToot = archive.fetch(arg.source_required)
         if newToot:
             mastodon = connect()
             print('tooting: %s' % newToot['toot'])
